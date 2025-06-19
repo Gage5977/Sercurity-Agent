@@ -98,8 +98,10 @@ def send_status_email(status_content, recipient="audit@axisthorn.com", config=No
         msg['Subject'] = "Security Status Alert - Axis Thorn"
         msg.set_content(status_content)
         
-        # Send email
+        # Send email with relaxed SSL for Gmail
         context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls(context=context)
             server.login(SMTP_USERNAME, smtp_password)
@@ -155,8 +157,10 @@ def send_report(report_file, report_content, recipient="audit@axisthorn.com", co
             attachment.add_header('Content-Disposition', f'attachment; filename="{os.path.basename(report_file)}"')
             msg.attach(attachment)
         
-        # Send email
+        # Send email with relaxed SSL for Gmail
         context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls(context=context)
             server.login(SMTP_USERNAME, smtp_password)

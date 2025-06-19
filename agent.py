@@ -134,29 +134,36 @@ def main():
     if args.status:
         print("Running quick security status check...")
         
-        # Load email config
-        load_email_config()
-        if not (SMTP_SERVER and SMTP_USERNAME):
-            print("⚠️  No email configuration found. Run with --setup-email first.")
-            return
-        
         # Run quick scan
         results = scan_project(args.path, days=1)  # Only check last 24 hours for status
         
         # Generate status summary
         status_summary = generate_status_summary(results, args.path)
         
-        # Send status email
-        recipient = args.email or "audit@axisthorn.com"
-        if send_status_email(status_summary, recipient):
-            print(f"✅ Status email sent to {recipient}")
-            
-            # Print summary to console too
-            print("\n" + "=" * 50)
-            print(status_summary)
-            print("=" * 50)
-        else:
-            print("❌ Failed to send status email")
+        # Save status report locally
+        os.makedirs(args.output, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        status_file = os.path.join(args.output, f"status_report_{timestamp}.txt")
+        
+        with open(status_file, "w") as f:
+            f.write(status_summary)
+        print(f"✅ Status report saved to: {status_file}")
+        
+        # Try to send email if configured
+        config = load_email_config()
+        if config and args.email:
+            recipient = args.email
+            if send_status_email(status_summary, recipient, config):
+                print(f"✅ Status email sent to {recipient}")
+            else:
+                print("⚠️  Email sending failed - report saved locally")
+        elif args.email:
+            print("⚠️  No email configuration found - report saved locally only")
+        
+        # Always print summary to console
+        print("\n" + "=" * 50)
+        print(status_summary)
+        print("=" * 50)
         
         return
     
@@ -217,11 +224,14 @@ def main():
             
             # Email if requested
             if args.email:
-                load_email_config()
-                if SMTP_SERVER and SMTP_USERNAME:
-                    send_report(report_file, report_content, args.email)
+                config = load_email_config()
+                if config:
+                    if send_report(report_file, report_content, args.email, config):
+                        print(f"✅ Report emailed to {args.email}")
+                    else:
+                        print("⚠️  Email sending failed - report saved locally at: " + report_file)
                 else:
-                    print("⚠️  No email configuration found. Run with --setup-email first.")
+                    print("⚠️  No email configuration found - report saved locally at: " + report_file)
             
             # Print summary
             print("\n" + "=" * 50)

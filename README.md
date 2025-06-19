@@ -52,14 +52,20 @@ python security_agent/agent.py --setup-email
 python security_agent/agent.py --env-info
 ```
 
-### Get Immediate Status Email
+### Get Immediate Status Report
+```bash
+python security_agent/agent.py --status
+```
+This saves a status report locally in `security_reports/status_report_*.txt`
+
+### Status Report with Email (if configured)
 ```bash
 python security_agent/agent.py --status --email your@email.com
 ```
 
 ### Quick Status Check (using convenience script)
 ```bash
-./security_agent/check_status.sh your@email.com
+./security_agent/check_status.sh
 ```
 
 ### Advanced Options
