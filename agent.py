@@ -9,14 +9,14 @@ from environment import detect_environment, recommend_deployment
 from scanner import scan_python_code, scan_node_code, scan_python_dependencies, scan_node_dependencies
 from git_monitor import get_recent_commits, scan_commit_messages, scan_commit_diffs
 from stylistic_linter import lint_commit_messages, lint_file_content
-from reporter import generate_report, generate_markdown_report
-from emailer import send_report, prompt_email_config, load_email_config, SMTP_SERVER, SMTP_USERNAME
+from reporter import generate_report, generate_markdown_report, generate_status_summary
+from emailer import send_report, send_status_email, prompt_email_config, load_email_config, SMTP_SERVER, SMTP_USERNAME
 
 # Configuration
 MONITOR_PATHS = ["."]  # Paths to monitor, can be extended
 ONE_WEEK = 7 * 24 * 3600
 
-def run_full_scan(paths=None, days=7):
+def run_full_scan(paths=None, days=7, quick=False):
     """Run comprehensive security scan across all specified paths"""
     if paths is None:
         paths = MONITOR_PATHS
@@ -30,8 +30,9 @@ def run_full_scan(paths=None, days=7):
         print(f"\nScanning path: {os.path.abspath(path)}")
         
         # Static code analysis
-        static_issues += scan_python_code(path)
-        static_issues += scan_node_code(path)
+        if not quick:
+            static_issues += scan_python_code(path)
+            static_issues += scan_node_code(path)
         
         # Dependency analysis
         requirements_file = os.path.join(path, "requirements.txt")
@@ -105,6 +106,10 @@ def main():
                        help="Run in weekly monitoring mode (continuous)")
     parser.add_argument("-m", "--monitor", action="append",
                        help="Additional paths to monitor (can be used multiple times)")
+    parser.add_argument("--status", action="store_true",
+                       help="Send immediate status email with current security state")
+    parser.add_argument("--quick", action="store_true",
+                       help="Quick scan mode (skip static analysis for faster results)")
     
     args = parser.parse_args()
     
@@ -123,6 +128,36 @@ def main():
     
     if args.setup_email:
         prompt_email_config()
+        return
+    
+    # Handle status check
+    if args.status:
+        print("Running quick security status check...")
+        
+        # Load email config
+        load_email_config()
+        if not (SMTP_SERVER and SMTP_USERNAME):
+            print("⚠️  No email configuration found. Run with --setup-email first.")
+            return
+        
+        # Run quick scan
+        results = scan_project(args.path, days=1)  # Only check last 24 hours for status
+        
+        # Generate status summary
+        status_summary = generate_status_summary(results, args.path)
+        
+        # Send status email
+        recipient = args.email or "audit@axisthorn.com"
+        if send_status_email(status_summary, recipient):
+            print(f"✅ Status email sent to {recipient}")
+            
+            # Print summary to console too
+            print("\n" + "=" * 50)
+            print(status_summary)
+            print("=" * 50)
+        else:
+            print("❌ Failed to send status email")
+        
         return
     
     # Set up monitoring paths
@@ -173,7 +208,7 @@ def main():
     # One-time scan mode
     else:
         try:
-            results = scan_project(args.path, args.days)
+            results = scan_project(args.path, args.days) if not args.quick else scan_project(args.path, 1)
             
             # Generate report
             print("\n📝 Generating report...")

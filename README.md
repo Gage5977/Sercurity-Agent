@@ -9,6 +9,7 @@ A modular Python agent for automated weekly security & compliance auditing, tail
 - **Git Security**: Scans commit messages and diffs for secrets, large data dumps, and potential prompt injections
 - **Style Compliance**: Checks for emojis, slang, and excessive punctuation per Axis Thorn guidelines
 - **Automated Reporting**: Generates markdown reports with option to email results
+- **Instant Status Alerts**: On-demand security status emails with priority indicators
 - **Cross-platform**: Works on macOS, Linux, and Windows
 
 ## Installation
@@ -49,6 +50,16 @@ python security_agent/agent.py --setup-email
 ### Show Environment Info
 ```bash
 python security_agent/agent.py --env-info
+```
+
+### Get Immediate Status Email
+```bash
+python security_agent/agent.py --status --email your@email.com
+```
+
+### Quick Status Check (using convenience script)
+```bash
+./security_agent/check_status.sh your@email.com
 ```
 
 ### Advanced Options

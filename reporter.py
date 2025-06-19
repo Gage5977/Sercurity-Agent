@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+import socket
 
 def generate_markdown_report(static_issues, dep_vulns, commit_issues, style_issues):
     lines = []
@@ -82,3 +83,92 @@ def generate_report(scan_results, output_dir="security_reports"):
         f.write(report_content)
     
     return report_file, report_content
+
+def generate_status_summary(scan_results, project_path="."):
+    """Generate a concise status summary for email"""
+    lines = []
+    
+    # Header
+    hostname = socket.gethostname()
+    lines.append(f"Security Status Report - {hostname}")
+    lines.append(f"Project: {os.path.abspath(project_path)}")
+    lines.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append("\n" + "=" * 50 + "\n")
+    
+    # Quick summary
+    static_issues = scan_results.get("python_code_issues", []) + scan_results.get("node_code_issues", [])
+    dep_vulns = scan_results.get("python_dependencies", []) + scan_results.get("node_dependencies", [])
+    commit_issues = scan_results.get("commit_issues", []) + scan_results.get("diff_issues", [])
+    style_issues = scan_results.get("style_issues", [])
+    
+    total_issues = len(static_issues) + len(dep_vulns) + len(commit_issues) + len(style_issues)
+    
+    # Status indicator
+    if total_issues == 0:
+        status = "✅ SECURE - All checks passed"
+        priority = "Normal"
+    elif total_issues < 5:
+        status = "⚠️ WARNING - Minor issues detected"
+        priority = "Medium"
+    elif total_issues < 20:
+        status = "🔶 ATTENTION - Multiple issues found"
+        priority = "High"
+    else:
+        status = "❌ CRITICAL - Immediate attention required"
+        priority = "Critical"
+    
+    lines.append(f"Overall Status: {status}")
+    lines.append(f"Priority Level: {priority}")
+    lines.append(f"Total Issues: {total_issues}")
+    
+    # Breakdown
+    lines.append("\nIssue Breakdown:")
+    lines.append(f"- Code Security Issues: {len(static_issues)}")
+    lines.append(f"- Dependency Vulnerabilities: {len(dep_vulns)}")
+    lines.append(f"- Git/Commit Issues: {len(commit_issues)}")
+    lines.append(f"- Style Violations: {len(style_issues)}")
+    
+    # Critical findings
+    critical_items = []
+    
+    # Check for high severity vulnerabilities
+    for vuln in dep_vulns:
+        if vuln.get("severity", "").upper() in ["HIGH", "CRITICAL"]:
+            critical_items.append(f"- {vuln['package']}: {vuln.get('severity')} severity vulnerability")
+    
+    # Check for secrets in commits
+    for issue in commit_issues:
+        if "secret" in issue.get("type", "").lower() or "password" in issue.get("type", "").lower():
+            critical_items.append(f"- Potential secret in commit {issue['commit'][:7]}")
+    
+    if critical_items:
+        lines.append("\n🚨 Critical Findings:")
+        lines.extend(critical_items[:5])  # Limit to 5
+        if len(critical_items) > 5:
+            lines.append(f"... and {len(critical_items) - 5} more")
+    
+    # Recent activity
+    if "environment" in scan_results:
+        env = scan_results["environment"]
+        lines.append("\nEnvironment:")
+        lines.append(f"- OS: {env.get('os')} {env.get('os_version')}")
+        lines.append(f"- Python: {env.get('python_version')}")
+        lines.append(f"- Security Tools: Bandit={'Yes' if env.get('bandit_installed') else 'No'}, "
+                    f"pip-audit={'Yes' if env.get('pip_audit_installed') else 'No'}")
+    
+    # Recommendations
+    lines.append("\nRecommended Actions:")
+    if dep_vulns:
+        lines.append("1. Update vulnerable dependencies immediately")
+    if static_issues:
+        lines.append("2. Review and fix code security issues")
+    if commit_issues:
+        lines.append("3. Audit recent commits for sensitive data")
+    if total_issues == 0:
+        lines.append("1. Continue regular security monitoring")
+        lines.append("2. Keep dependencies up to date")
+    
+    lines.append("\n" + "=" * 50)
+    lines.append("\nFor detailed report, run: python3 agent.py --email <your-email>")
+    
+    return "\n".join(lines)

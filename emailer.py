@@ -68,6 +68,50 @@ def prompt_email_config():
     save_email_config(config)
     return config
 
+def send_status_email(status_content, recipient="audit@axisthorn.com", config=None):
+    """Send a status summary email without attachment"""
+    global SMTP_SERVER, SMTP_PORT, SMTP_USERNAME
+    
+    if not config:
+        config = load_email_config()
+    
+    if not (SMTP_SERVER and SMTP_PORT and SMTP_USERNAME):
+        print("Email not configured. Run with --setup-email first.")
+        return False
+    
+    # Get password from keyring or memory
+    smtp_password = None
+    if keyring:
+        smtp_password = keyring.get_password(PASSWORD_SERVICE_NAME, SMTP_USERNAME)
+    if not smtp_password:
+        smtp_password = globals().get("_PLAINTEXT_PASSWORD")
+    
+    if not smtp_password:
+        print("No SMTP password available. Unable to send email.")
+        return False
+    
+    try:
+        # Create simple text email
+        msg = EmailMessage()
+        msg['From'] = SMTP_USERNAME
+        msg['To'] = recipient
+        msg['Subject'] = "Security Status Alert - Axis Thorn"
+        msg.set_content(status_content)
+        
+        # Send email
+        context = ssl.create_default_context()
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls(context=context)
+            server.login(SMTP_USERNAME, smtp_password)
+            server.send_message(msg)
+        
+        print(f"Status email sent to {recipient}")
+        return True
+        
+    except Exception as e:
+        print(f"Error sending status email: {e}")
+        return False
+
 def send_report(report_file, report_content, recipient="audit@axisthorn.com", config=None):
     global SMTP_SERVER, SMTP_PORT, SMTP_USERNAME
     
